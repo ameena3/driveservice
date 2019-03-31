@@ -13,29 +13,33 @@ import (
 
 var mx sync.Mutex
 
+type hashSetMap map[string]struct{}
+
 // FileService ...
 type FileService struct {
 	instance *drive.Service
 	wg       sync.WaitGroup
+	fl       hashSetMap
 }
 
 // Initialize ...
 //Singleton pattern for getting the fileservice instance.
 func (fs *FileService) Initialize(client *http.Client) (*drive.Service, error) {
+	fs.fl = make(hashSetMap)
 	if fs.instance != nil {
 		return fs.instance, nil
-	} else {
-		mx.Lock()
-		defer mx.Unlock()
-		var err error
-		fs.instance, err = drive.New(client)
-		return fs.instance, err
 	}
+	mx.Lock()
+	defer mx.Unlock()
+	var err error
+	fs.instance, err = drive.New(client)
+	return fs.instance, err
+
 }
 
-//UploadFileBatched ...
+//UploadDriveBatched ...
 // Crud operations
-func (fs *FileService) UploadFileBatched(parentID string, batchSize int, dir string) {
+func (fs *FileService) UploadDriveBatched(parentID string, batchSize int, dir string) {
 	var filenameswithpath []string
 	err := filepath.Walk(dir,
 		func(path string, info os.FileInfo, err error) error {
@@ -116,4 +120,34 @@ func (fs *FileService) DeleteFileBatched(prefix string, batchSize int) {
 		}
 	}
 
+}
+
+// GetAllFilesOnDrive ...
+func (fs *FileService) GetAllFilesOnDrive() []string {
+	var list []string
+	r, err := fs.instance.Files.List().Fields("nextPageToken, files(id, name)").Do()
+	checkError("Unable to retrieve the file list", err)
+	for {
+		if len(r.Files) == 0 {
+			log.Println("No files found")
+			break
+		} else {
+			for _, i := range r.Files {
+				list = append(list, i.Name)
+			}
+			if len(r.NextPageToken) == 0 {
+				break
+			} else {
+				r, err = fs.instance.Files.List().Fields("nextPageToken, files(id, name)").PageToken(r.NextPageToken).Do()
+			}
+		}
+	}
+	return list
+}
+
+// As we are checking the error toomany times.
+func checkError(message string, err error) {
+	if err != nil {
+		log.Fatalf("%v : %v", message, err)
+	}
 }
