@@ -76,7 +76,7 @@ func (fs *FileService) uploadFile(fileName string) {
 	var parentID string
 	//Check the runtime info for the operating system.
 	if runtime.GOOS == "linux" {
-		dirstructure = strings.Split(path.Dir(fileName), "/")
+		dirstructure = strings.Split(path.Dir(fileName), "/")[1:]
 	} else {
 		dirstructure = strings.Split(path.Dir(fileName), "\\")
 	}
@@ -85,7 +85,7 @@ func (fs *FileService) uploadFile(fileName string) {
 	if !exists {
 		parentID, err := fs.createDirStructure(dirstructure)
 		log.Printf("Directory not found created directory with id %v \n", parentID)
-		checkError("Error not able to create the directort structure", err)
+		checkError("Error not able to create the directory structure", err)
 	}
 	up, err := os.Open(fileName)
 	if err != nil {
@@ -171,7 +171,7 @@ func (fs *FileService) GetAllFilesOnDrive() map[string]*drive.File {
 					if _, ok := fs.idChilds[file.Parents[0]]; ok {
 						fs.idChilds[file.Parents[0]] = append(fs.idChilds[file.Parents[0]], file)
 					} else {
-						filed := make([]*drive.File, 1)
+						var filed []*drive.File
 						filed = append(filed, file)
 						fs.idChilds[file.Parents[0]] = filed
 					}
@@ -199,7 +199,7 @@ func (fs *FileService) checkIfDirExists(directories []string) (string, bool) {
 			found := false
 			// Find all the childs and match with
 			for _, value := range fs.idChilds[fs.flist[dir].Id] {
-				// We have confirmed the directory exists
+				// We have confirmed the directory exists if we have reached the last element.
 				if i == (len(directories) - 1) {
 					found = true
 					break
@@ -209,15 +209,28 @@ func (fs *FileService) checkIfDirExists(directories []string) (string, bool) {
 					break
 				}
 			}
+			// found or not found we have to report back.
+			if !found {
+				exists = found
+				break
+			} else {
+				exists = found
+			}
 
+		} else {
+			break
 		}
 	}
+	if index != 0 {
+		parent = fs.flist[directories[index]].Id
+	} else {
+		parent = ""
+	}
 	if exists {
-		parent = fs.flist[directories[len(directories)-1]].Id
+
 		log.Printf("Found the directory structure pareent where the file will be inserted is: %v \n", parent)
 	} else {
-		log.Println("Dir structure not found creating one ...")
-		parent = ""
+		log.Printf("Dir structure not found creating one ... at parent : %v : index %v", parent, index)
 	}
 	return parent, exists
 }
